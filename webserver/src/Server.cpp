@@ -1,7 +1,10 @@
 #include "../includes/Server.hpp"
+#include <fcntl.h>
 #include <fstream>
 #include <istream>
+#include <netinet/in.h>
 #include <string>
+#include <sys/socket.h>
 #include <unistd.h>
 
 Server::Server() : ARules(0) {}
@@ -21,81 +24,15 @@ Server &Server::operator=(const Server &s) {
   _methods = s._methods;
   _isLocation = s._isLocation;
   _clientSize = s._clientSize;
-  _epollFd = s._epollFd;
-  _serverFd = s._serverFd;
   _indexFile = s._indexFile;
   _defaultErrorPage = s._defaultErrorPage;
+  _serverFd = s._serverFd;
   for (std::map<std::string, ARules *>::const_iterator it = s._location.begin();
        it != s._location.end(); ++it) {
     _location[it->first] =
         new Location(*(dynamic_cast<Location *>(it->second)));
   }
   return *this;
-}
-
-int Server::create_tcp_server_socket() {
-  const int opt = 1;
-  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (fd == -1) {
-    Error("Could not create socket");
-  }
-
-  std::cout << "Created a socket with fd: " << fd << std::endl;
-
-  if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-    close(fd);
-    throw Error("Could not set socket options");
-  };
-  struct sockaddr_in saddr;
-  saddr.sin_family = AF_INET;
-  saddr.sin_port = htons(_port);
-  saddr.sin_addr.s_addr = INADDR_ANY;
-
-  if (bind(fd, reinterpret_cast<struct sockaddr *>(&saddr),
-           sizeof(struct sockaddr_in)) == -1) {
-    close(fd);
-    Error("Could not bind to socket");
-  }
-
-  if (listen(fd, 1000) == -1) {
-    close(fd);
-    Error("Could not listen on socket");
-  }
-
-  return fd;
-}
-
-void Server::addEventToEpoll(int fd, uint32_t events) {
-  epoll_event event;
-  event.events = events;
-  event.data.fd = fd;
-  if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &event) == -1) {
-    std::cerr << "Failed to add socket to epoll instance." << std::endl;
-    close(fd);
-  }
-}
-
-void Server::loadDefaultFiles() {
-  std::string path = "www" + _root + "/" + _index;
-  std::ifstream s(path.c_str());
-  if (!s.good()) {
-    std::cout << "ERROR HANDLING INDEX FILE CHECK CONFIG FILE" << std::endl;
-    std::cout << "LOADING THE DEFAULT index.html FROM /html/default/"
-              << std::endl;
-    s.open("www/default/index.html");
-  }
-  std::string line;
-  while (std::getline(s, line)) {
-    _indexFile += line + "\r\n";
-  }
-  _indexFile += "\r\n";
-  s.close();
-  s.open("www/default/error.html");
-  while (std::getline(s, line)) {
-    _defaultErrorPage += line + "\r\n";
-  }
-  _defaultErrorPage += "\r\n";
-  s.close();
 }
 
 Server::Server(const std::string &serverConf) : ARules(0) {
@@ -125,15 +62,57 @@ Server::Server(const std::string &serverConf) : ARules(0) {
     }
   }
   loadDefaultFiles();
-  _serverFd = create_tcp_server_socket();
-  _epollFd = epoll_create1(0);
-  if (_epollFd == -1) {
-    close(_serverFd);
-    Error("Failed to create epoll instance.");
-  }
-  addEventToEpoll(_serverFd, EPOLLIN);
-  std::cout << "Server started. Listening on port " << this->_port << std::endl;
 }
+
+int  Server::getFd() const {return _serverFd;}
+
+void Server::loadDefaultFiles() {
+  std::string path = "www" + _root + "/" + _index;
+  std::ifstream s(path.c_str());
+  if (!s.good()) {
+    std::cout << "ERROR HANDLING INDEX FILE CHECK CONFIG FILE" << std::endl;
+    std::cout << "LOADING THE DEFAULT index.html FROM /html/default/"
+              << std::endl;
+    s.open("www/default/index.html");
+  }
+  std::string line;
+  while (std::getline(s, line)) {
+    _indexFile += line + "\r\n";
+  }
+  _indexFile += "\r\n";
+  s.close();
+  s.open("www/default/error.html");
+  while (std::getline(s, line)) {
+    _defaultErrorPage += line + "\r\n";
+  }
+  _defaultErrorPage += "\r\n";
+  s.close();
+}
+
+void  Server::createSocket()
+{
+  _serverFd = socket(AF_INET, SOCK_STREAM, 0);  /*create socket fd*/
+  if (_serverFd == -1)
+    throw Error("error creating socket connection on server "+_serverName);
+  setNonBlocking(_serverFd); /*set to non block*/
+
+  struct sockaddr_in address;
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = INADDR_ANY;
+  address.sin_port = htons(_port);
+
+  if (bind(_serverFd, (sockaddr*)&address, sizeof(address)) == -1)
+    throw Error("error binding socket to port on server "+_serverName);
+
+  if (listen(_serverFd, 10) == -1)
+  {
+    close (_serverFd);
+    throw Error("error listening on server "+_serverName);
+  }
+  std::cout << "server listening on port " << _port << std::endl;
+}
+
+
 
 void Server::handleClient(int clientFd) {
   RequestHandler rq(clientFd);
@@ -158,44 +137,6 @@ void Server::handleClient(int clientFd) {
   // close(clientFd);
 }
 
-void Server::handleNewConnection(const epoll_event &event) {
-  (void)event;
-  struct sockaddr_in clientAddress;
-  socklen_t clientAddressLength = sizeof(clientAddress);
-  int clientFd = accept(_serverFd, (struct sockaddr *)&clientAddress,
-                        &clientAddressLength);
-  if (clientFd == -1) {
-    std::cerr << "Failed to accept client connection." << std::endl;
-    return;
-  }
-  addEventToEpoll(clientFd, EPOLLIN);
-  handleClient(clientFd);
-}
-
-void Server::handleClientData(const epoll_event &event) {
-  int clientFd = event.data.fd;
-  handleClient(clientFd);
-}
-
-void Server::start() {
-  while (true) {
-    epoll_event events[10];
-    int numEvents = epoll_wait(_epollFd, events, 10, -1);
-    // if (numEvents == -1) {
-    //   std::cerr << "Failed to wait for events." << std::endl;
-    //   break;
-    // }
-    for (int i = 0; i < numEvents; ++i) {
-      if (events[i].data.fd == _serverFd) {
-        handleNewConnection(events[i]);
-      } else {
-        handleClientData(events[i]);
-      }
-    }
-  }
-  close(_serverFd);
-  close(_epollFd);
-}
 
 void Server::printConf(const std::string &level) const {
   (void)level;
@@ -225,10 +166,21 @@ void Server::printConf(const std::string &level) const {
 }
 
 Server::~Server() {
+  close(_serverFd);
   for (std::map<std::string, ARules *>::iterator it = _location.begin();
        it != _location.end(); ++it) {
     if (it->second)
       delete it->second;
   }
   _location.clear();
+}
+
+void setNonBlocking(int servFd)
+{
+    int flags = fcntl(servFd, F_GETFL, 0);
+    if (flags == -1)
+        exit(EXIT_FAILURE);
+    flags|= O_NONBLOCK;
+    if (fcntl(servFd, F_SETFL, flags) == -1)
+        exit(EXIT_FAILURE);
 }

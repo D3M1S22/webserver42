@@ -9,16 +9,16 @@ RequestHandler::RequestHandler(const int &fd) {
   char buffer[BUFFER_SIZE];
 
   // Read the incoming data from the client socket
-  ssize_t bytesRead = recv(fd, buffer, BUFFER_SIZE, 0);
-  if (bytesRead == -1) {
-    std::cerr << "Error reading from client socket." << std::endl;
-    return;
-  } else if (bytesRead == 0) {
+  int bytesRead;
+  while((bytesRead = recv(fd, buffer, BUFFER_SIZE, 0)) == -1)  
+    continue;
+  if (bytesRead == 0) {
     std::cerr << "Client disconnected." << std::endl;
     close(fd);
     return;
   }
   buffer[bytesRead] = '\0';
+  std::cout << buffer << std::endl;
   std::istringstream iss(buffer);
   std::string line;
   std::string null;
@@ -44,7 +44,6 @@ const std::string RequestHandler::getPath() const { return _path; }
 
 void RequestHandler::checkMethod(ARules &s) {
   _isAllowed = s.isAllowed(_path, _method);
-  // std::cout << (_isAllowed ? "true" : "false") << std::endl;
 }
 
 void RequestHandler::sendResp(const int &fd) {

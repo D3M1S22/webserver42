@@ -5,7 +5,7 @@ CC = c++
 CFLAGS = -Wall -Wextra -Werror -std=c++98
 
 # Source files
-SRCS = ./src/Config.cpp ./src/Server.cpp ./src/Location.cpp ./src/ARules.cpp ./src/Error.cpp ./src/RequestHandler.cpp ./main.cpp
+SRCS = ./src/Config.cpp ./src/Server.cpp ./src/Location.cpp ./src/ARules.cpp ./src/Error.cpp ./src/RequestHandler.cpp ./src/EpollManager.cpp ./main.cpp
 # Header files
 HDRS = ./includes/*.hpp
 
