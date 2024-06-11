@@ -1,4 +1,6 @@
 #include "./includes/Config.hpp"
+#include "includes/EpollManager.hpp"
+#include <sys/epoll.h>
 #include <sys/wait.h>
 
 bool checkInput(int argc, std::string path, std::string &errorMsg) {
@@ -26,20 +28,15 @@ int main(int argc, char **argv) {
     return 1;
   }
   Config c(argv[1]);
+  ServerManager serverManager;
   try {
     c.parseConfig();
+    serverManager.addServerToEpoll(c.getServers());
   } catch (const Error &e) {
     std::cerr << e.message() << std::endl;
     return 1;
   }
-  std::vector<Server>::iterator it = c.getServers().begin();
-  std::vector<Server>::iterator ite = c.getServers().end();
-  int pid;
-  for (; it != ite; it++) {
-    pid = fork();
-    if (!pid)
-      it->start();
-  }
-  waitpid(pid, NULL, 0);
+  serverManager.mainLoop();
+
   return 0;
 }

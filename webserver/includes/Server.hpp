@@ -11,27 +11,23 @@
 class Server : public ARules {
 private:
   Server();
-  int _serverFd;
-  int _epollFd;
+  int	_serverFd;
   std::string _serverName;
   std::map<std::string, std::string> _errorPage;
   std::string _indexFile;
   std::string _defaultErrorPage;
   int _port;
-  void handleNewConnection(const epoll_event &event);
-  void handleClientData(const epoll_event &event);
-  void addEventToEpoll(int fd, uint32_t events);
-  int create_tcp_server_socket();
   void loadDefaultFiles();
 
 public:
+  void  createSocket();
+  int getFd() const;
   void handleClient(int clientFd);
   Server(const std::string &s);
   Server(const Server &s);
   Server &operator=(const Server &s);
   void printConf(const std::string &level) const;
-  void start();
-  // using ARules::getLocation;
-  // using ARules::getMethods;
   ~Server();
 };
+
+void    setNonBlocking(int servFd);
