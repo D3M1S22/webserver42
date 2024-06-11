@@ -143,7 +143,6 @@ void Server::handleClient(int clientFd) {
                                "Content-Type: text/html\r\n"
                                "Connection: close\r\n"
                                "\r\n";
-
   const char *responseBody = _indexFile.c_str();
   // if (p.length() == 1 && p[0] == '/')
   //   rq.setAllowed(true);

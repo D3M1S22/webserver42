@@ -2,6 +2,7 @@
 #include "../includes/Location.hpp"
 #include <cstddef>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -88,16 +89,15 @@ bool ARules::compareMethod(const std::string &method) {
 bool ARules::recursiveCheck(std::string path, std::string method) {
   std::map<std::string, ARules *>::iterator it = _location.begin();
   for (; it != _location.end(); it++) {
-    std::cout << "FOUND LOCATION" << std::endl;
-    if (std::strncmp(it->first.c_str(), path.c_str(), it->first.length())) {
-      path = path.substr(0, it->first.length());
+    if (!std::strncmp(it->first.c_str(), path.c_str(), it->first.length())) {
+      path = path.erase(0, it->first.length());
       if (path.length() == 0) {
         return it->second->compareMethod(method);
       } else
         return it->second->recursiveCheck(path, method);
     }
   }
-  return false;
+  return compareMethod(method);
 }
 
 // New function to check if a method is allowed for a given path
