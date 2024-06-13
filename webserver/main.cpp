@@ -27,8 +27,8 @@ int main(int argc, char **argv) {
     std::cout << errorMsg << std::endl;
     return 1;
   }
-  Config c(argv[1]);
   ServerManager serverManager;
+  Config c(argv[1]);
   try {
     c.parseConfig();
     serverManager.addServerToEpoll(c.getServers());

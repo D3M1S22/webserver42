@@ -1,6 +1,8 @@
 #include "../includes/Server.hpp"
+#include "../includes/RequestHandler.hpp"
 #include <fcntl.h>
 #include <fstream>
+#include <iostream>
 #include <istream>
 #include <netinet/in.h>
 #include <string>
@@ -36,6 +38,7 @@ Server &Server::operator=(const Server &s) {
 }
 
 Server::Server(const std::string &serverConf) : ARules(0) {
+  _serverFd = 1024;
   std::istringstream iss(serverConf);
   std::string line;
   std::string locationConf = "";
@@ -69,7 +72,8 @@ int  Server::getFd() const {return _serverFd;}
 void Server::loadDefaultFiles() {
   std::string path = "www" + _root + "/" + _index;
   std::ifstream s(path.c_str());
-  if (!s.good()) {
+  if (!s.is_open()) {
+    s.close();
     std::cout << "ERROR HANDLING INDEX FILE CHECK CONFIG FILE" << std::endl;
     std::cout << "LOADING THE DEFAULT index.html FROM /html/default/"
               << std::endl;
@@ -92,8 +96,18 @@ void Server::loadDefaultFiles() {
 void  Server::createSocket()
 {
   _serverFd = socket(AF_INET, SOCK_STREAM, 0);  /*create socket fd*/
-  if (_serverFd == -1)
+  std::cout << "fd server = " << _serverFd << std::endl;
+  if ( _serverFd == -1)
     throw Error("error creating socket connection on server "+_serverName);
+
+  // ADDED AFTER MAY CAUSE DAMAGE LOL
+  int opt = 1;
+  if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+      perror("setsockopt");
+      exit(EXIT_FAILURE);
+  }
+  // //
+
   setNonBlocking(_serverFd); /*set to non block*/
 
   struct sockaddr_in address;
@@ -116,17 +130,24 @@ void  Server::createSocket()
 
 void Server::handleClient(int clientFd) {
   RequestHandler rq(clientFd);
-  std::string m = rq.getMethod();
-  std::string p = rq.getPath();
+  rq.check(*(dynamic_cast<ARules *>(this)), clientFd);
+  if(rq.getMethod() == "GET")
+    rq.createResponse(this, clientFd);
+  // std::map<std::string, std::string>::iterator errorP;
+  // if (!((rq.getReqStatus() & 1) >> 0)) {
+  //   errorP = _errorPage.find(Utils::to_string(NOT_ALLOWED));
+  //   rq.error(NOT_ALLOWED,
+  //            (errorP != _errorPage.end() ? errorP->second : _defaultErrorPage),
+  //            clientFd);
+  // }
+  
+
   const char *responseHeader = "HTTP/1.1 200 OK\r\n"
                                "Content-Type: text/html\r\n"
-                               "Connection: close\r\n"
+                               "Connection: keep-alive"
                                "\r\n";
   const char *responseBody = _indexFile.c_str();
-  // if (p.length() == 1 && p[0] == '/')
-  //   rq.setAllowed(true);
-  // else
-  rq.checkMethod(*(dynamic_cast<ARules *>(this)));
+
   send(clientFd, responseHeader, ((std::string)responseHeader).length(), 0);
 
   // Send HTML body
@@ -165,8 +186,27 @@ void Server::printConf(const std::string &level) const {
   std::cout << " END OF SERVER CONF " << std::endl;
 }
 
+
+std::string Server::getErrPage(int errNb){
+  std::map<std::string, std::string>::iterator errorP = _errorPage.find(Utils::to_string(errNb));
+  if(errorP != _errorPage.end())
+  {
+    std::ifstream s(("www"+_root+"/"+errorP->second).c_str());
+    std::stringstream buffer;
+    buffer << s.rdbuf();
+    s.close();
+    return (buffer.str()+"\r\n\r\n");
+  }
+  return _defaultErrorPage;
+}
+
+std::string Server::composedPath()
+{
+  return "www"+_root;
+}
+
 Server::~Server() {
-  close(_serverFd);
+  // close(_serverFd);
   for (std::map<std::string, ARules *>::iterator it = _location.begin();
        it != _location.end(); ++it) {
     if (it->second)
@@ -184,3 +224,4 @@ void setNonBlocking(int servFd)
     if (fcntl(servFd, F_SETFL, flags) == -1)
         exit(EXIT_FAILURE);
 }
+

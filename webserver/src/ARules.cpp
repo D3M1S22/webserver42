@@ -11,12 +11,15 @@
 ARules::ARules() {}
 
 ARules::ARules(const int &isLocation)
-    : _root("/default"), _index("index.html"), _clientSize(1),
+    : _root("/default"), _index("index.html"),
       _isLocation(isLocation) {
   if (!isLocation) {
     _methods.push_back("GET");
     _methods.push_back("POST");
     _methods.push_back("DELETE");
+    _clientSize = 2048;
+  }else{
+    _clientSize = -1;
   }
 }
 
@@ -56,7 +59,7 @@ void ARules::parseConf(const std::string &key, std::istringstream &s,
     }
     std::string locationName;
     s >> locationName;
-    _location[locationName] = new Location(locationConf, _methods);
+    _location[locationName] = new Location(locationConf, _methods, _clientSize, _index);
   }
 }
 
@@ -80,37 +83,45 @@ std::vector<std::string> &ARules::getMethods() { return _methods; }
 std::map<std::string, ARules *> &ARules::getLocation() { return _location; }
 std::string ARules::getRoot() const { return _root; }
 
-bool ARules::compareMethod(const std::string &method) {
+int ARules::compareMethod(const std::string &method, int contentSize) {
+  int val = 0;
   if (std::find(_methods.begin(), _methods.end(), method) != _methods.end())
-    return true;
-  return false;
+    val = 1;
+  if(contentSize <= _clientSize){
+    val = val | 2;
+  }
+  else{
+   val = val | 8;
+  }
+  return val;
 }
 
-bool ARules::recursiveCheck(std::string path, std::string method) {
+// New function to check if a method is allowed for a given path
+int ARules::isAllowed(std::string path, const std::string &method, int contentSize) {
   std::map<std::string, ARules *>::iterator it = _location.begin();
   for (; it != _location.end(); it++) {
     if (!std::strncmp(it->first.c_str(), path.c_str(), it->first.length())) {
       path = path.erase(0, it->first.length());
       if (path.length() == 0) {
-        return it->second->compareMethod(method);
+        return (0 | it->second->compareMethod(method, contentSize));
       } else
-        return it->second->recursiveCheck(path, method);
+        return (0 |it->second->isAllowed(path, method, contentSize));
     }
   }
-  return compareMethod(method);
+  return (0 | compareMethod(method, contentSize));
 }
 
-// New function to check if a method is allowed for a given path
-bool ARules::isAllowed(std::string path, const std::string &method) {
-  size_t pos = path.find_last_of("/");
-  if (pos != 0 && pos != path.length()) {
-    path = path.substr(0, pos);
-  }
-  if (pos != std::string::npos && pos == 0) {
-    return compareMethod(method);
-  } else if (pos > 1) {
-    return recursiveCheck(path, method);
-  }
 
-  return false;
+std::string ARules::getLocationIndex(std::string s){
+   std::map<std::string, ARules *>::iterator it = _location.begin();
+  for (; it != _location.end(); it++) {
+    if (!std::strncmp(it->first.c_str(), s.c_str(), it->first.length())) {
+      s = s.erase(0, it->first.length());
+      if (s.length() == 0) {
+        return it->second->_index;
+      } else
+        return it->second->getLocationIndex(s);
+    }
+  }
+  return _index;
 }

@@ -81,6 +81,7 @@ void  ServerManager::mainLoop()
 }
 
 ServerManager::~ServerManager(){
+  std::cout << "fd num before closing " << _epollFd << std::endl;
   close(_epollFd);
 }
 
