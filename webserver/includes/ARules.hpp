@@ -35,8 +35,8 @@ public:
   std::vector<std::string> &getMethods();
   std::string getRoot() const;
   virtual void printConf(const std::string &level) const = 0;
-  bool isAllowed(std::string method, const std::string &path);
-  bool compareMethod(const std::string &method);
-  bool recursiveCheck(std::string path, std::string method);
+  int isAllowed(std::string method, const std::string &path, int contentSize);
+  int compareMethod(const std::string &method, int contentSize);\
+  std::string getLocationIndex(std::string s);
   virtual ~ARules();
 };

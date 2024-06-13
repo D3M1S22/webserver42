@@ -6,7 +6,7 @@ Location::Location() : ARules(1) {}
 Location::Location(const Location &l) : ARules() { *this = l; }
 
 Location::Location(const std::string &confTxt,
-                   std::vector<std::string> &parentMethods)
+                   std::vector<std::string> &parentMethods, int parentClientSize, const std::string &parentIndex)
     : ARules(1) {
   std::istringstream iss(confTxt);
   std::string line;
@@ -18,8 +18,12 @@ Location::Location(const std::string &confTxt,
       parseConf(key, lineStream, iss);
     }
   }
+  if(_index.length() == 0)
+    _index = parentIndex;
   if (_methods.empty())
     _methods = parentMethods;
+  if(_clientSize == -1)
+    _clientSize = parentClientSize;
 }
 
 Location &Location::operator=(const Location &l) {

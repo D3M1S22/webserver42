@@ -5,6 +5,7 @@
 #include <map>
 #include <sys/epoll.h>
 #include <vector>
+#include <unistd.h>
 
 class ServerManager {
     private:

@@ -1,36 +1,51 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Error</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                margin-top: 50px;
-            }
-            .error-container {
-                border: 2px solid #e74c3c;
-                display: inline-block;
-                padding: 20px;
-                background-color: #f9ebeb;
-                border-radius: 5px;
-            }
-            .error-code {
-                font-size: 2em;
-                color: #e74c3c;
-            }
-            .error-message {
-                margin-top: 10px;
-                color: #333;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="error-container">
-            <div class="error-code">{{errorCode}}</div>
-            <div class="error-message">{{errorMessage}}</div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error {{errNbr}}: Something's Not Quite Right</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #fce7b2;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            max-width: 80%;
+            font-size: 1.2em;
+        }
+        h1 {
+            color: #f0ad4e;
+        }
+        p {
+            line-height: 1.6;
+            color: #6c757d;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Error {{errNbr}}: Something's Not Quite Right</h1>
+        <p>Oops! The server couldn't understand your request. Maybe it's speaking a different language today.</p>
+        <p>Please check your request and try again. If the problem persists, blame it on the internet goblins.</p>
+        <div class="footer">
+            <p>&copy; 2024 YourCompany. All rights reserved.</p>
         </div>
-    </body>
+    </div>
+</body>
 </html>
