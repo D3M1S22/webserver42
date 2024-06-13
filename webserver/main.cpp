@@ -1,6 +1,5 @@
 #include "./includes/Config.hpp"
-#include "includes/EpollManager.hpp"
-#include <fcntl.h>
+#include "includes/ServerManager.hpp"
 #include <sys/epoll.h>
 #include <sys/wait.h>
 
