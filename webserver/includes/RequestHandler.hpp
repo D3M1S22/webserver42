@@ -1,21 +1,22 @@
 #pragma once
 
 #include "ARules.hpp"
-#include "Utils.hpp"
+#include "Error.hpp"
 #include "Server.hpp"
+#include "Utils.hpp"
+#include <fstream>
 #include <iostream>
+#include <istream>
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "Error.hpp"
-#include <fstream>
-
 
 enum StatusCodes {
   NOT_ALLOWED = 405,
   BAD_REQUEST = 400,
   FORBIDDEN = 403,
   NOT_FOUND = 400,
+  SERVER_ERROR = 500,
   OK = 200
 };
 
@@ -29,6 +30,8 @@ private:
   int _responseStatus;
   int _contentSize;
   int _reqStatus;
+  std::string _boundary;
+  std::string _fileName;
   RequestHandler();
 
 public:
@@ -36,7 +39,7 @@ public:
   std::string &getPath();
   const std::string getBody() const;
   RequestHandler(const int &fd);
-  void check(ARules &s, int fd);
+  void check(ARules &s);
   void sendResp(const int &fd);
   void setAllowed(const bool &a);
   int getReqStatus() const;
@@ -45,7 +48,7 @@ public:
 
   void get(const std::string indexFile);
 
-  bool post();
+  void post(std::string completePath);
 
   bool deleteR();
 
@@ -55,6 +58,6 @@ public:
 
   void createHeaderResp(const std::string optionalHeader);
 
-void createResponse(Server *Serv, int fd);
+  void createResponse(Server *Serv, int fd);
   ~RequestHandler();
 };

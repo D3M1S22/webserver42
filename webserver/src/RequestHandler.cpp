@@ -1,75 +1,115 @@
 #include "../includes/RequestHandler.hpp"
+#include "../includes/Error.hpp"
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <exception>
+#include <fcntl.h>
+#include <iomanip>
+#include <ios>
+#include <istream>
 #include <map>
 #include <sstream>
+#include <streambuf>
+#include <string>
+#include <valarray>
 #include <vector>
-#include "../includes/Error.hpp"
+
+// Function to generate a random string of specified length
+std::string generateRandomString(int length) {
+  const char charset[] =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const int max_index = sizeof(charset) - 1;
+
+  std::string random_string;
+  srand(static_cast<unsigned int>(time(0))); // Seed the random number generator
+
+  for (int i = 0; i < length; ++i) {
+    random_string += charset[rand() % max_index];
+  }
+
+  return random_string;
+}
 
 #define BUFFER_SIZE 4096
 RequestHandler::RequestHandler() {}
 
-RequestHandler::RequestHandler(const int &fd) : _responseStatus(200), _contentSize(0) {
-  char buffer[BUFFER_SIZE];
+// Function to find the position of a substring
+size_t findBoundary(const std::string &data, const std::string &boundary,
+                    size_t start) {
+  return data.find(boundary, start);
+}
 
-  // Read the incoming data from the client socket
+RequestHandler::RequestHandler(const int &fd)
+    : _body(""), _responseStatus(200), _contentSize(0) {
+  char buffer[2];
   ssize_t bytesRead;
-  while ((bytesRead = recv(fd, buffer, BUFFER_SIZE, 0)) == -1)
+  while ((bytesRead = recv(fd, buffer, 1, 0)) == -1)
     continue;
-  if (bytesRead == 0) {
-    std::cerr << "Client disconnected." << std::endl;
-    close(fd);
+  buffer[bytesRead] = '\0';
+  std::vector<char> resp;
+  resp.insert(resp.end(), buffer, buffer + bytesRead);
+  while ((bytesRead = recv(fd, buffer, 1, 0)) > 0) {
+    resp.insert(resp.end(), buffer, buffer + bytesRead);
+  }
+  std::string response(resp.begin(), resp.end());
+  int pos = response.find("\r\n\r\n");
+  std::string header = response.substr(0, pos);
+  std::istringstream firstLine(header.substr(0, header.find("\r\n")));
+  firstLine >> _method >> _path;
+  size_t contentLengthPos = header.find("Content-Length:");
+  std::string contentLengthLine;
+  if (contentLengthPos != std::string::npos) {
+    std::string contentLengthLineStr = header.substr(contentLengthPos);
+    contentLengthLine =
+        contentLengthLineStr.substr(0, contentLengthLineStr.find("\r\n"));
+    _body = response.substr(pos + 4);
+  }
+  std::string e = "boundary=";
+  size_t firstWPos = header.find(e);
+  if (firstWPos != std::string::npos) {
+    _boundary = header.substr(firstWPos + e.length(),
+                              header.find("\r", firstWPos + e.length()) -
+                                  (firstWPos + e.length()));
+  }
+  std::istringstream s(contentLengthLine);
+  if (s.fail()) {
+    _responseStatus = SERVER_ERROR;
     return;
   }
-  std::string request = buffer;
-  std::cout << request << std::endl;
-  buffer[bytesRead] = '\0';
-  std::cout << request.find("boundary=") << std::endl;
-  int pos = request.find("\r\n\r\n");
-  _body = request.substr(pos+4);
-  std::string header =  request.substr(0, pos);
-  std::string lastLine = header.substr(header.find_last_of("\n")+1);
-  std::istringstream firstLine( header.substr(0, header.find("\n")));
-  firstLine >> _method >> _path;
-  std::cout << _method << " " << _path << std::endl;
-  std::istringstream s(lastLine);
   std::string key;
-  s>>key;
-  if(key == "Content-Length:")
+  s >> key;
+  if (key == "Content-Length:") {
     s >> _contentSize;
+  }
+  if (_boundary.length() > 0 && _contentSize != 0) {
+    std::string fileNameLocStr = "filename=\"";
+    size_t fileNamePos = response.find(fileNameLocStr);
+    if (fileNamePos != std::string::npos)
+      _fileName = response.substr(
+          fileNamePos + fileNameLocStr.length(),
+          (response.find("\"", fileNamePos + fileNameLocStr.length())) -
+              (fileNamePos + fileNameLocStr.length()));
+  }
 }
 
 const std::string RequestHandler::getBody() const { return _body; }
 const std::string RequestHandler::getMethod() const { return _method; }
 std::string &RequestHandler::getPath() { return _path; }
 
-void RequestHandler::check(ARules &s,int fd) {
+void RequestHandler::check(ARules &s) {
   _reqStatus = s.isAllowed(_path, _method, _contentSize);
-  if(!((_reqStatus & 1) >> 0))
-  {
+  if (!((_reqStatus & 1) >> 0)) {
     _responseStatus = NOT_ALLOWED;
     return;
-  }
-  else if(((_reqStatus & 2) >> 1) && ((int)_body.length()< _contentSize))
-  {
-    int sizeToRead = _contentSize-_body.length() +1;
-    char buffer[sizeToRead];
-    int byteRead =-1;
-    if(!(byteRead= recv(fd, buffer, sizeToRead, 0)))
-    {
-      std::cerr << "ERROR READING FILE "<< sizeToRead<< " "<< fd << std::endl;
-      close(fd);
-    }
-    buffer[byteRead] = '\0';
-    _body.append(buffer);
-      std::cout << "Buffer " << buffer << std::endl;
-      return;
-  }else if(!((_reqStatus & 2) >> 1)){
-    std::cout << "QUIII" << std::endl;
+  } else if ((_reqStatus & 8) >> 7) {
     _responseStatus = BAD_REQUEST;
     return;
   }
 }
+
+int fd_is_valid(int fd) { return fcntl(fd, F_GETFD) != -1 || errno != EBADF; }
 
 void RequestHandler::sendResp(const int &fd) {
   send(fd, _responseHeader.c_str(), (_responseHeader).length(), 0);
@@ -81,14 +121,14 @@ int RequestHandler::getReqStatus() const { return _reqStatus; }
 
 void RequestHandler::error(int fd, std::string page) {
   createHeaderResp("Connection: close\r\n");
-  std::string fixedPage = Utils::replacestring(page, "{{errNbr}}", Utils::to_string(_responseStatus));
+  std::string fixedPage = Utils::replacestring(
+      page, "{{errNbr}}", Utils::to_string(_responseStatus));
   _responseBody = fixedPage;
   sendResp(fd);
 }
 
 void RequestHandler::get(const std::string fullPath) {
   std::ifstream s(fullPath.c_str());
-  std::cout << fullPath << std::endl;
   if (!s.is_open()) {
     _responseStatus = NOT_FOUND;
     return;
@@ -96,51 +136,80 @@ void RequestHandler::get(const std::string fullPath) {
   _responseBody.clear();
   std::stringstream buffer;
   buffer << s.rdbuf();
-  _responseBody = buffer.str()+"\r\n\r\n";
+  _responseBody = buffer.str() + "\r\n\r\n";
   s.close();
   _responseStatus = OK;
   createHeaderResp("");
 }
 
-bool RequestHandler::post() {return true;}
+void RequestHandler::post(std::string completePath) {
+  std::string subBody = _body;
+  size_t start = subBody.find(_boundary);
+  size_t end = subBody.find(_boundary, (_boundary.length() + 2));
+  if (start != std::string::npos && end != std::string::npos) {
+    // Adjust positions to get the content in between
+    start += _boundary.length() + 2; // Move past boundary and \r\n
+    std::string headers =
+        _body.substr(start, _body.find("\r\n\r\n", start) - start);
+    start += headers.length() + 4; // Move past headers and \r\n\r\n
+    //   // Extract binary data
+    std::string fileContent =
+        _body.substr(start, end - start - 2); // Exclude trailing \r\n
+    //   // Write binary data to file
+    _fileName.insert(0, generateRandomString(15));
+    _fileName.insert(0, completePath);
+    std::ofstream outFile(_fileName.c_str(),
+                          std::ios::out | std::ios::binary | std::ios::trunc);
+    if (outFile) {
+      outFile.write(fileContent.c_str(), fileContent.length());
+      outFile.close();
+      std::cout << "File extracted successfully.\n";
+    } else {
+      std::cerr << "Error writing to file.\n";
+    }
+  }
+  createHeaderResp("");
+}
 
-bool RequestHandler::deleteR() {return true;}
+bool RequestHandler::deleteR() { return true; }
 
 void RequestHandler::createResponse(Server *serv, int fd) {
-  // Server *Server = static_cast<class Server *>(Serv);
-  if(_method == "GET" && _responseStatus == 200)
-  {
-    if(_path.find(".") == std::string::npos){
-      if(_path[_path.length()-1] != '/')
+  if (_method == "GET" && _responseStatus == 200) {
+    if (_path.find(".") == std::string::npos) {
+      if (_path[_path.length() - 1] != '/')
         _path.append("/");
-      get(serv->composedPath()+_path+serv->getLocationIndex(_path));
-    }
-    else
-      get(serv->composedPath()+"/"+_path);
+      get(serv->composedPath() + _path + serv->getLocationIndex(_path));
+    } else
+      get(serv->composedPath() + _path);
   }
-  if(_method == "POST")
-    std::cout << "body = " <<_body<< " content size "<< _contentSize << std::endl;
-  if(_responseStatus == OK)
-  {
+  if (_method == "POST") {
+    if (_path.find("/cgi-bin/"))
+      std::cout << "handle cgi" << std::endl;
+    else
+      post(serv->composedPath() + _path + "/uploadedFiles/");
+    _responseBody = "OK";
+  }
+  if (_responseStatus == OK) {
     std::cout << "Sending response" << std::endl;
     sendResp(fd);
-  }else{
+  } else {
     error(fd, serv->getErrPage(_responseStatus));
   }
 }
 
-void RequestHandler::setBody(const std::string &body) {
-  _body = body;
+void RequestHandler::setBody(const std::string &body) { _body = body; }
+
+void RequestHandler::createHeaderResp(const std::string optionalHeaders) {
+  _responseHeader += "HTTP/1.1 " + Utils::to_string(_responseStatus) +
+                     (_responseStatus == OK ? " OK" : " KO") +
+                     "\r\n"
+                     "Content-Type: text/html\r\n"
+                     "Connection: keep-alive" +
+                     optionalHeaders +
+                     "\r\n"
+                     "\r\n";
 }
 
-void RequestHandler::createHeaderResp(const std::string optionalHeaders){
-  _responseHeader += "HTTP/1.1 "+ Utils::to_string(_responseStatus) + (_responseStatus == OK ? " OK" : " KO")+"\r\n"
-                    "Content-Type: text/html\r\n"
-                    "Connection: keep-alive"
-                    +optionalHeaders+"\r\n"
-                    "\r\n";
-}
-
-int RequestHandler::getResponseStatus()const{return _responseStatus;}
+int RequestHandler::getResponseStatus() const { return _responseStatus; }
 
 RequestHandler::~RequestHandler() {}

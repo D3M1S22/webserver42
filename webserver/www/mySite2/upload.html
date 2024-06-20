@@ -3,23 +3,12 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Upload File</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                margin-top: 50px;
-            }
-            form {
-                display: inline-block;
-                margin-top: 20px;
-            }
-        </style>
+        <title>File Upload</title>
     </head>
     <body>
         <h1>Upload a File</h1>
         <form action="/upload" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" required /><br /><br />
+            <input type="file" name="file" required />
             <button type="submit">Upload</button>
         </form>
     </body>

@@ -1,5 +1,6 @@
 #include "../includes/Server.hpp"
 #include "../includes/RequestHandler.hpp"
+#include <ext/stdio_filebuf.h>
 #include <fcntl.h>
 #include <fstream>
 #include <iostream>
@@ -67,7 +68,7 @@ Server::Server(const std::string &serverConf) : ARules(0) {
   loadDefaultFiles();
 }
 
-int  Server::getFd() const {return _serverFd;}
+int Server::getFd() const { return _serverFd; }
 
 void Server::loadDefaultFiles() {
   std::string path = "www" + _root + "/" + _index;
@@ -93,20 +94,19 @@ void Server::loadDefaultFiles() {
   s.close();
 }
 
-void  Server::createSocket()
-{
-  _serverFd = socket(AF_INET, SOCK_STREAM, 0);  /*create socket fd*/
+void Server::createSocket() {
+  _serverFd = socket(AF_INET, SOCK_STREAM, 0); /*create socket fd*/
   std::cout << "fd server = " << _serverFd << std::endl;
-  if ( _serverFd == -1)
-    throw Error("error creating socket connection on server "+_serverName);
+  if (_serverFd == -1)
+    throw Error("error creating socket connection on server " + _serverName);
 
   // ADDED AFTER MAY CAUSE DAMAGE LOL
   int opt = 1;
   if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-      perror("setsockopt");
-      exit(EXIT_FAILURE);
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
   }
-  // //
+  //
 
   setNonBlocking(_serverFd); /*set to non block*/
 
@@ -115,49 +115,22 @@ void  Server::createSocket()
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(_port);
 
-  if (bind(_serverFd, (sockaddr*)&address, sizeof(address)) == -1)
-    throw Error("error binding socket to port on server "+_serverName);
+  if (bind(_serverFd, (sockaddr *)&address, sizeof(address)) == -1)
+    throw Error("error binding socket to port on server " + _serverName);
 
-  if (listen(_serverFd, 10) == -1)
-  {
-    close (_serverFd);
-    throw Error("error listening on server "+_serverName);
+  if (listen(_serverFd, 10) == -1) {
+    close(_serverFd);
+    throw Error("error listening on server " + _serverName);
   }
   std::cout << "server listening on port " << _port << std::endl;
 }
 
-
-
+#define BUFFER_SIZE 150000
 void Server::handleClient(int clientFd) {
   RequestHandler rq(clientFd);
-  rq.check(*(dynamic_cast<ARules *>(this)), clientFd);
-  if(rq.getMethod() == "GET")
-    rq.createResponse(this, clientFd);
-  // std::map<std::string, std::string>::iterator errorP;
-  // if (!((rq.getReqStatus() & 1) >> 0)) {
-  //   errorP = _errorPage.find(Utils::to_string(NOT_ALLOWED));
-  //   rq.error(NOT_ALLOWED,
-  //            (errorP != _errorPage.end() ? errorP->second : _defaultErrorPage),
-  //            clientFd);
-  // }
-  
-
-  const char *responseHeader = "HTTP/1.1 200 OK\r\n"
-                               "Content-Type: text/html\r\n"
-                               "Connection: keep-alive"
-                               "\r\n";
-  const char *responseBody = _indexFile.c_str();
-
-  send(clientFd, responseHeader, ((std::string)responseHeader).length(), 0);
-
-  // Send HTML body
-  send(clientFd, responseBody, ((std::string)responseBody).length(), 0);
-
-  // Close client connection
-  close(clientFd);
-  // close(clientFd);
+  rq.check(*(dynamic_cast<ARules *>(this)));
+  rq.createResponse(this, clientFd);
 }
-
 
 void Server::printConf(const std::string &level) const {
   (void)level;
@@ -186,24 +159,20 @@ void Server::printConf(const std::string &level) const {
   std::cout << " END OF SERVER CONF " << std::endl;
 }
 
-
-std::string Server::getErrPage(int errNb){
-  std::map<std::string, std::string>::iterator errorP = _errorPage.find(Utils::to_string(errNb));
-  if(errorP != _errorPage.end())
-  {
-    std::ifstream s(("www"+_root+"/"+errorP->second).c_str());
+std::string Server::getErrPage(int errNb) {
+  std::map<std::string, std::string>::iterator errorP =
+      _errorPage.find(Utils::to_string(errNb));
+  if (errorP != _errorPage.end()) {
+    std::ifstream s(("www" + _root + "/" + errorP->second).c_str());
     std::stringstream buffer;
     buffer << s.rdbuf();
     s.close();
-    return (buffer.str()+"\r\n\r\n");
+    return (buffer.str() + "\r\n\r\n");
   }
   return _defaultErrorPage;
 }
 
-std::string Server::composedPath()
-{
-  return "www"+_root;
-}
+std::string Server::composedPath() { return "www" + _root; }
 
 Server::~Server() {
   // close(_serverFd);
@@ -215,13 +184,11 @@ Server::~Server() {
   _location.clear();
 }
 
-void setNonBlocking(int servFd)
-{
-    int flags = fcntl(servFd, F_GETFL, 0);
-    if (flags == -1)
-        exit(EXIT_FAILURE);
-    flags|= O_NONBLOCK;
-    if (fcntl(servFd, F_SETFL, flags) == -1)
-        exit(EXIT_FAILURE);
+void setNonBlocking(int servFd) {
+  int flags = fcntl(servFd, F_GETFL, 0);
+  if (flags == -1)
+    exit(EXIT_FAILURE);
+  flags |= O_NONBLOCK;
+  if (fcntl(servFd, F_SETFL, flags) == -1)
+    exit(EXIT_FAILURE);
 }
-
