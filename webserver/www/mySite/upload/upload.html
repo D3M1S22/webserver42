@@ -75,7 +75,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch('/upload', {
+                const response = await fetch('/upload/upload.py', {
                     method: 'POST',
                     body: formData
                 });

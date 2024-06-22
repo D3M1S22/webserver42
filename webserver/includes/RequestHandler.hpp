@@ -10,6 +10,9 @@
 #include "Error.hpp"
 #include <fstream>
 
+enum LangCgi {
+  PYTHON, GO
+};
 
 enum StatusCodes {
   NOT_ALLOWED = 405,
@@ -54,6 +57,8 @@ public:
   int getResponseStatus() const;
 
   void createHeaderResp(const std::string optionalHeader);
+
+  void handleCgi(Server* serv, int fd, int lang);
 
 void createResponse(Server *Serv, int fd);
   ~RequestHandler();

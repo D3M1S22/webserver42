@@ -131,7 +131,11 @@ void  Server::createSocket()
 void Server::handleClient(int clientFd) {
   RequestHandler rq(clientFd);
   rq.check(*(dynamic_cast<ARules *>(this)), clientFd);
-  if(rq.getMethod() == "GET")
+  if (rq.getPath().find(".py") != std::string::npos)
+    rq.handleCgi(this, clientFd, 0);
+  else if (rq.getPath().find(".go") != std::string::npos)
+    rq.handleCgi(this, clientFd, 1);
+  else
     rq.createResponse(this, clientFd);
   // std::map<std::string, std::string>::iterator errorP;
   // if (!((rq.getReqStatus() & 1) >> 0)) {

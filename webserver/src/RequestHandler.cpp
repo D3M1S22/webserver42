@@ -1,4 +1,9 @@
 #include "../includes/RequestHandler.hpp"
+#include <cerrno>
+#include <string>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <poll.h>
 #include <cstddef>
 #include <cstring>
 #include <map>
@@ -22,16 +27,16 @@ RequestHandler::RequestHandler(const int &fd) : _responseStatus(200), _contentSi
     return;
   }
   std::string request = buffer;
-  std::cout << request << std::endl;
+  // std::cout << request << std::endl;
   buffer[bytesRead] = '\0';
-  std::cout << request.find("boundary=") << std::endl;
+  // std::cout << request.find("boundary=") << std::endl;
   int pos = request.find("\r\n\r\n");
   _body = request.substr(pos+4);
   std::string header =  request.substr(0, pos);
   std::string lastLine = header.substr(header.find_last_of("\n")+1);
   std::istringstream firstLine( header.substr(0, header.find("\n")));
   firstLine >> _method >> _path;
-  std::cout << _method << " " << _path << std::endl;
+  // std::cout << _method << " " << _path << std::endl;
   std::istringstream s(lastLine);
   std::string key;
   s>>key;
@@ -62,10 +67,10 @@ void RequestHandler::check(ARules &s,int fd) {
     }
     buffer[byteRead] = '\0';
     _body.append(buffer);
-      std::cout << "Buffer " << buffer << std::endl;
-      return;
+      // std::cout << "Buffer " << buffer << std::endl;
+    return;
   }else if(!((_reqStatus & 2) >> 1)){
-    std::cout << "QUIII" << std::endl;
+    // std::cout << "QUIII" << std::endl;
     _responseStatus = BAD_REQUEST;
     return;
   }
@@ -88,7 +93,7 @@ void RequestHandler::error(int fd, std::string page) {
 
 void RequestHandler::get(const std::string fullPath) {
   std::ifstream s(fullPath.c_str());
-  std::cout << fullPath << std::endl;
+  // std::cout << fullPath << std::endl;
   if (!s.is_open()) {
     _responseStatus = NOT_FOUND;
     return;
@@ -107,7 +112,7 @@ bool RequestHandler::post() {return true;}
 bool RequestHandler::deleteR() {return true;}
 
 void RequestHandler::createResponse(Server *serv, int fd) {
-  // Server *Server = static_cast<class Server *>(Serv);
+  std::cout << serv->composedPath()+_path+serv->getLocationIndex(_path) << "method = " << _method << std::endl;
   if(_method == "GET" && _responseStatus == 200)
   {
     if(_path.find(".") == std::string::npos){
@@ -115,11 +120,14 @@ void RequestHandler::createResponse(Server *serv, int fd) {
         _path.append("/");
       get(serv->composedPath()+_path+serv->getLocationIndex(_path));
     }
-    else
-      get(serv->composedPath()+"/"+_path);
+    else{
+      get(serv->composedPath()+_path);
+    }
   }
-  if(_method == "POST")
-    std::cout << "body = " <<_body<< " content size "<< _contentSize << std::endl;
+  if(_method == "POST"){
+    // std::cout << << std::endl;
+    // std::cout << "body = " <<_body<< " content size "<< _contentSize << std::endl;
+  }
   if(_responseStatus == OK)
   {
     std::cout << "Sending response" << std::endl;
@@ -127,6 +135,80 @@ void RequestHandler::createResponse(Server *serv, int fd) {
   }else{
     error(fd, serv->getErrPage(_responseStatus));
   }
+}
+
+int waitpid_with_timeout(pid_t pid, int* status, int timeout) {
+    int elapsed_time = 0;
+    while (elapsed_time < timeout * 10000) {  // Convert seconds to milliseconds
+        int result = waitpid(pid, status, WNOHANG);
+        if (result != 0) {
+            return 0;
+        }
+        poll(NULL, 0, 100);  // Sleep for 100 milliseconds
+        elapsed_time += 100;
+    }
+    std::cout << "error: timeout. killing pid " << std::endl;
+    return 1;
+}
+
+void  RequestHandler::handleCgi(Server* serv,const int clientFd, int lang)
+{
+  std::string Cmd;
+  char *argv[4];
+  std::string arg = (serv->composedPath()+_path);
+  if (lang == 0){
+    if (arg.find("/upload.py") != std::string::npos)
+      argv[2] = (char*)Utils::to_string(clientFd).c_str();
+    else
+      argv[2] = NULL;
+    argv[1] = (char *)arg.c_str();
+    Cmd = "/usr/bin/python3";
+  }
+  else
+  {
+    argv[1] = (char *)"run";
+    argv[2] = (char *)arg.c_str();
+    Cmd = "/usr/bin/go";
+
+  }
+  argv[0] = (char*)Cmd.c_str();
+  argv[3] = NULL;
+
+
+  if (access(("/"+arg).c_str(),R_OK | X_OK))
+  {
+    int fd[2];
+    if (pipe(fd) == -1)
+      std::cout << "error opening pipe" << std::endl;
+    int pid = fork();
+    if (!pid)
+    {
+      close(fd[0]);
+      std::cout << "starting exec" << std::endl;
+      if(dup2(fd[1], 1) == -1 || close(fd[1]) == 1)
+        std::cout << "error duplicating file" << std::endl;
+      execve(Cmd.c_str(), argv, environ);
+      std::cout << "exec error: " << errno << std::endl;
+      exit(0);
+    }
+    int status;
+    waitpid_with_timeout(pid, &status, 1);
+    kill(pid, 9);
+    close(fd[1]);
+    char buffer[1024];
+    std::string output;
+    size_t byteRead;
+    while((byteRead = read(fd[0], buffer, 1024-1)) > 0){
+      buffer[byteRead] = '\0';
+      output += buffer;
+    }
+    close(fd[0]);
+    _responseBody = Utils::to_string(buffer);
+    createHeaderResp("");
+    sendResp(clientFd);
+  }
+  else
+   std::cout << "file cgi not found" << std::endl;
 }
 
 void RequestHandler::setBody(const std::string &body) {
