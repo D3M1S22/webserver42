@@ -10,6 +10,9 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
+enum LangCgi {
+  PYTHON, GO
+};
 
 enum StatusCodes {
   NOT_ALLOWED = 405,
@@ -58,6 +61,8 @@ public:
 
   void createHeaderResp(const std::string optionalHeader);
 
-  void createResponse(Server *Serv, int fd);
+  void handleCgi(Server* serv, int fd, int lang);
+
+void createResponse(Server *Serv, int fd);
   ~RequestHandler();
 };

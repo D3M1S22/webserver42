@@ -1,5 +1,10 @@
 #include "../includes/RequestHandler.hpp"
 #include "../includes/Error.hpp"
+#include <cerrno>
+#include <string>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <poll.h>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -197,6 +202,80 @@ void RequestHandler::createResponse(Server *serv, int fd) {
   }
 }
 
+int waitpid_with_timeout(pid_t pid, int* status, int timeout) {
+    int elapsed_time = 0;
+    while (elapsed_time < timeout * 10000) {  // Convert seconds to milliseconds
+        int result = waitpid(pid, status, WNOHANG);
+        if (result != 0) {
+            return 0;
+        }
+        poll(NULL, 0, 100);  // Sleep for 100 milliseconds
+        elapsed_time += 100;
+    }
+    std::cout << "error: timeout. killing pid " << std::endl;
+    return 1;
+}
+
+void  RequestHandler::handleCgi(Server* serv,const int clientFd, int lang)
+{
+  std::string Cmd;
+  char *argv[4];
+  std::string arg = (serv->composedPath()+_path);
+  if (lang == 0){
+    if (arg.find("/upload.py") != std::string::npos)
+      argv[2] = (char*)Utils::to_string(clientFd).c_str();
+    else
+      argv[2] = NULL;
+    argv[1] = (char *)arg.c_str();
+    Cmd = "/usr/bin/python3";
+  }
+  else
+  {
+    argv[1] = (char *)"run";
+    argv[2] = (char *)arg.c_str();
+    Cmd = "/usr/bin/go";
+
+  }
+  argv[0] = (char*)Cmd.c_str();
+  argv[3] = NULL;
+
+
+  if (access(("/"+arg).c_str(),R_OK | X_OK))
+  {
+    int fd[2];
+    if (pipe(fd) == -1)
+      std::cout << "error opening pipe" << std::endl;
+    int pid = fork();
+    if (!pid)
+    {
+      close(fd[0]);
+      std::cout << "starting exec" << std::endl;
+      if(dup2(fd[1], 1) == -1 || close(fd[1]) == 1)
+        std::cout << "error duplicating file" << std::endl;
+      execve(Cmd.c_str(), argv, environ);
+      std::cout << "exec error: " << errno << std::endl;
+      exit(0);
+    }
+    int status;
+    waitpid_with_timeout(pid, &status, 1);
+    kill(pid, 9);
+    close(fd[1]);
+    char buffer[1024];
+    std::string output;
+    size_t byteRead;
+    while((byteRead = read(fd[0], buffer, 1024-1)) > 0){
+      buffer[byteRead] = '\0';
+      output += buffer;
+    }
+    close(fd[0]);
+    _responseBody = Utils::to_string(buffer);
+    createHeaderResp("");
+    sendResp(clientFd);
+  }
+  else
+   std::cout << "file cgi not found" << std::endl;
+}
+
 void RequestHandler::setBody(const std::string &body) { _body = body; }
 
 void RequestHandler::createHeaderResp(const std::string optionalHeaders) {
@@ -209,6 +288,81 @@ void RequestHandler::createHeaderResp(const std::string optionalHeaders) {
                      "\r\n"
                      "\r\n";
 }
+
+int waitpid_with_timeout(pid_t pid, int* status, int timeout) {
+    int elapsed_time = 0;
+    while (elapsed_time < timeout * 10000) {  // Convert seconds to milliseconds
+        int result = waitpid(pid, status, WNOHANG);
+        if (result != 0) {
+            return 0;
+        }
+        poll(NULL, 0, 100);  // Sleep for 100 milliseconds
+        elapsed_time += 100;
+    }
+    std::cout << "error: timeout. killing pid " << std::endl;
+    return 1;
+}
+
+void  RequestHandler::handleCgi(Server* serv,const int clientFd, int lang)
+{
+  std::string Cmd;
+  char *argv[4];
+  std::string arg = (serv->composedPath()+_path);
+  if (lang == 0){
+    if (arg.find("/upload.py") != std::string::npos)
+      argv[2] = (char*)Utils::to_string(clientFd).c_str();
+    else
+      argv[2] = NULL;
+    argv[1] = (char *)arg.c_str();
+    Cmd = "/usr/bin/python3";
+  }
+  else
+  {
+    argv[1] = (char *)"run";
+    argv[2] = (char *)arg.c_str();
+    Cmd = "/usr/bin/go";
+
+  }
+  argv[0] = (char*)Cmd.c_str();
+  argv[3] = NULL;
+
+
+  if (access(("/"+arg).c_str(),R_OK | X_OK))
+  {
+    int fd[2];
+    if (pipe(fd) == -1)
+      std::cout << "error opening pipe" << std::endl;
+    int pid = fork();
+    if (!pid)
+    {
+      close(fd[0]);
+      std::cout << "starting exec" << std::endl;
+      if(dup2(fd[1], 1) == -1 || close(fd[1]) == 1)
+        std::cout << "error duplicating file" << std::endl;
+      execve(Cmd.c_str(), argv, environ);
+      std::cout << "exec error: " << errno << std::endl;
+      exit(0);
+    }
+    int status;
+    waitpid_with_timeout(pid, &status, 1);
+    kill(pid, 9);
+    close(fd[1]);
+    char buffer[1024];
+    std::string output;
+    size_t byteRead;
+    while((byteRead = read(fd[0], buffer, 1024-1)) > 0){
+      buffer[byteRead] = '\0';
+      output += buffer;
+    }
+    close(fd[0]);
+    _responseBody = Utils::to_string(buffer);
+    createHeaderResp("");
+    sendResp(clientFd);
+  }
+  else
+   std::cout << "file cgi not found" << std::endl;
+}
+
 
 int RequestHandler::getResponseStatus() const { return _responseStatus; }
 
