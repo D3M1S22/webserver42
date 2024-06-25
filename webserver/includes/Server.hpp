@@ -1,28 +1,29 @@
 #pragma once
 
+#include "ARules.hpp"
 #include "Error.hpp"
 #include "Location.hpp"
-#include "ARules.hpp"
+#include "Utils.hpp"
 #include <arpa/inet.h>
+#include <fstream>
+#include <map>
 #include <netinet/in.h>
 #include <sys/epoll.h>
-#include "Utils.hpp"
-#include <fstream>
 
 class Server : public ARules {
 private:
   Server();
-  int	_serverFd;
+  int _serverFd;
   std::string _serverName;
   std::map<std::string, std::string> _errorPage;
   std::string _indexFile;
   std::string _defaultErrorPage;
-  std::map<std::string, const char *>cachedPages;
+  std::map<std::string, const char *> cachedPages;
   int _port;
   void loadDefaultFiles();
 
 public:
-  void  createSocket();
+  void createSocket();
   int getFd() const;
   void handleClient(int clientFd);
   Server(const std::string &s);
@@ -34,4 +35,4 @@ public:
   ~Server();
 };
 
-void    setNonBlocking(int servFd);
+void setNonBlocking(int servFd);

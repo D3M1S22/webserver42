@@ -6,7 +6,8 @@ Location::Location() : ARules(1) {}
 Location::Location(const Location &l) : ARules() { *this = l; }
 
 Location::Location(const std::string &confTxt,
-                   std::vector<std::string> &parentMethods, int parentClientSize, const std::string &parentIndex)
+                   std::vector<std::string> &parentMethods,
+                   int parentClientSize)
     : ARules(1) {
   std::istringstream iss(confTxt);
   std::string line;
@@ -18,11 +19,9 @@ Location::Location(const std::string &confTxt,
       parseConf(key, lineStream, iss);
     }
   }
-  if(_index.length() == 0)
-    _index = parentIndex;
   if (_methods.empty())
     _methods = parentMethods;
-  if(_clientSize == -1)
+  if (_clientSize == -1)
     _clientSize = parentClientSize;
 }
 
@@ -37,6 +36,7 @@ Location &Location::operator=(const Location &l) {
   _location = l._location;
   _isLocation = l._isLocation;
   _clientSize = l._clientSize;
+  _redirection = l._redirection;
   return *this;
 }
 
@@ -56,6 +56,7 @@ void Location::printConf(const std::string &level) const {
   }
   std::cout << level << "isLocation: " << _isLocation << std::endl;
   std::cout << level << "clientSize: " << _clientSize << std::endl;
+  std::cout << "Redirection " << _redirection << std::endl;
 }
 
 Location::~Location() {}

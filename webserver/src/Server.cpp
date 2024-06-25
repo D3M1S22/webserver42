@@ -30,6 +30,7 @@ Server &Server::operator=(const Server &s) {
   _indexFile = s._indexFile;
   _defaultErrorPage = s._defaultErrorPage;
   _serverFd = s._serverFd;
+  _redirection = s._redirection;
   for (std::map<std::string, ARules *>::const_iterator it = s._location.begin();
        it != s._location.end(); ++it) {
     _location[it->first] =
@@ -128,6 +129,7 @@ void Server::createSocket() {
 #define BUFFER_SIZE 150000
 void Server::handleClient(int clientFd) {
   RequestHandler rq(clientFd);
+  // printConf("");
   rq.check(*(dynamic_cast<ARules *>(this)));
   rq.createResponse(this, clientFd);
 }

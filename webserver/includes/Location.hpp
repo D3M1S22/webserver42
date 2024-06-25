@@ -7,7 +7,8 @@ public:
   void printConf(const std::string &level) const;
   Location();
   Location(const Location &l);
-  Location(const std::string &confTxt, std::vector<std::string> &parentMethods, int contentSize, const std::string &parentIndex);
+  Location(const std::string &confTxt, std::vector<std::string> &parentMethods,
+           int contentSize);
   Location &operator=(const Location &l);
   // using ARules::getLocation;
   // using ARules::getMethods;

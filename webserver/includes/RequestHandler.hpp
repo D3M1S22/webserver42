@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ARules.hpp"
 #include "Error.hpp"
 #include "Server.hpp"
 #include "Utils.hpp"
@@ -10,9 +9,9 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
-enum LangCgi {
-  PYTHON, GO
-};
+class ARules;
+class Server;
+enum LangCgi { PYTHON, GO };
 
 enum StatusCodes {
   NOT_ALLOWED = 405,
@@ -20,6 +19,7 @@ enum StatusCodes {
   FORBIDDEN = 403,
   NOT_FOUND = 400,
   SERVER_ERROR = 500,
+  REDIRECTION = 302,
   OK = 200
 };
 
@@ -28,13 +28,14 @@ private:
   std::string _method;
   std::string _path;
   std::string _body;
+  std::string _hostname;
+  int _contentSize;
+  std::string _boundary;
   std::string _responseHeader;
   std::string _responseBody;
   int _responseStatus;
-  int _contentSize;
-  int _reqStatus;
-  std::string _boundary;
   std::string _fileName;
+  reqStatusParams _reqStatus;
   RequestHandler();
 
 public:
@@ -45,7 +46,7 @@ public:
   void check(ARules &s);
   void sendResp(const int &fd);
   void setAllowed(const bool &a);
-  int getReqStatus() const;
+  reqStatusParams getReqStatus() const;
 
   void error(int fd, std::string page);
 
@@ -59,10 +60,13 @@ public:
 
   int getResponseStatus() const;
 
-  void createHeaderResp(const std::string optionalHeader);
+  void createAutoindex(const std::string directory);
 
-  void handleCgi(Server* serv, int fd, int lang);
+  void createHeaderResp(const std::string contentType = "text/html",
+                        const std::string optionalHeaders = "");
 
-void createResponse(Server *Serv, int fd);
+  void handleCgi(Server *serv, int fd, int lang);
+
+  void createResponse(Server *Serv, int fd);
   ~RequestHandler();
 };

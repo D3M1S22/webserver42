@@ -53,7 +53,7 @@ Server *ServerManager::isServerFd(int fd) {
 
 void ServerManager::mainLoop() {
   while (1) {
-    int numEvents = epoll_wait(_epollFd, events, 10, -1);
+    int numEvents = epoll_wait(_epollFd, events, 10000, -1);
     for (int i = 0; i < numEvents; i++) {
       Server *s = isServerFd(events[i].data.fd);
       if (s != 0) {

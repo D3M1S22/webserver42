@@ -8,6 +8,15 @@
 #include <string>
 #include <vector>
 
+struct reqStatusParams {
+  int _allACs;
+  std::string _indexPage;
+  bool _autoIndex;
+  std::string _redir;
+  reqStatusParams()
+      : _allACs(0), _indexPage(""), _autoIndex(false), _redir("") {}
+};
+
 class ARules {
 protected:
   std::string _root;
@@ -18,6 +27,7 @@ protected:
   bool _autoIndex;
   std::map<std::string, ARules *> _location;
   bool _isLocation;
+  std::string _redirection;
 
 public:
   ARules();
@@ -35,8 +45,9 @@ public:
   std::vector<std::string> &getMethods();
   std::string getRoot() const;
   virtual void printConf(const std::string &level) const = 0;
-  int isAllowed(std::string method, const std::string &path, int contentSize);
-  int compareMethod(const std::string &method, int contentSize);\
+  void isAllowed(std::string method, const std::string &path,
+                 const int contentSize, reqStatusParams &rqParams);
+  int compareMethod(const std::string &method, int contentSize);
   std::string getLocationIndex(std::string s);
   virtual ~ARules();
 };
